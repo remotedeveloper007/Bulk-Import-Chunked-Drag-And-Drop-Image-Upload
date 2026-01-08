@@ -1,59 +1,104 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Product CSV Importer (with Image Upload)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Simple tool to import products from a CSV and upload images in batches. Built on Laravel with a small frontend page to keep things easy.
 
-## About Laravel
+## What it does
+- Import products from a CSV file (`sku,name,price,image`) column.
+- Upserts by `sku` (new rows are created, existing rows are updated).
+- Upload many images with drag‑and‑drop; the app processes variants in the background.
+- Links images to products by filename (case‑insensitive). The largest variant becomes the primary image.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Prerequisites
+- PHP 8.x
+- Composer
+- Node.js and npm
+- A database (MySQL/PostgreSQL) configured in `.env`
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Quick setup
+1) Install dependencies
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+composer install
+npm install
+```
 
-## Learning Laravel
+2) Environment setup
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+copy .env.example .env   # On Windows (PowerShell/Command Prompt)
+# or: cp .env.example .env
+php artisan key:generate
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+3) Configure your database
+- Open `.env` and set `DB_*` values.
+- Run migrations:
 
-## Laravel Sponsors
+```bash
+php artisan migrate
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+4) Start the servers
 
-### Premium Partners
+```bash
+php artisan serve       # Backend (http://localhost:8000)
+npm run dev             # Frontend assets (Vite)
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+5) Start the queue worker (for image processing)
 
-## Contributing
+```bash
+php artisan queue:work
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Using the app
+1) Open the app in your browser:
+- `http://localhost:8000` shows the “Bulk CSV Import & Batch Image Upload” page.
 
-## Code of Conduct
+2) Upload images (optional, recommended before CSV import):
+- Drag and drop multiple image files into the upload area.
+- The app uploads in chunks and processes variants (256px, 512px, 1024px).
+- When done, the upload is marked “completed”.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+3) Import your CSV:
+- Choose your CSV and click “Import Products”.
+- Required columns: `sku,name,price`
+- Optional column: `image` (the original filename of the uploaded image)
+- Example CSV: `samples/products_template_with_images.csv`
 
-## Security Vulnerabilities
+## How images are linked
+- Matching is done by original filename (case‑insensitive).
+- If the CSV uses `image` without an extension, it still tries to match the base name.
+- Only uploads with status `completed` are considered.
+- If an image is found, the largest variant is set as the product’s primary image.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## CSV import summary
+After import, you’ll see:
+- Total rows
+- Imported (new) vs Updated (existing)
+- Invalid rows and duplicates found in the CSV
+- Images linked and images not found (when `image` column is used)
 
-## License
+## Testing
+Run the test suite:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan test
+```
+
+## Troubleshooting
+- CSV validation: make sure `sku`, `name`, and a positive `price` are present.
+- Queue not running: image variants won’t be generated; start `php artisan queue:work`.
+- Images not visible: ensure uploads completed; if needed, check storage permissions.
+- Large uploads: the page adapts concurrency to keep uploads stable; retries are built in.
+
+## Helpful paths
+- CSV upload endpoint: `POST /import/products`
+- Image chunk upload endpoint: `POST /upload/chunk`
+- Attach image to product: `POST /products/{product}/attach-image/{upload}`
+- Main page/view: `GET /` → bulk import & upload UI
+
+
+## Notes
+- Keep filenames simple (no spaces if possible) for easier matching.
+- You can run image uploads first, then import CSV with the `image` column to auto‑link.
