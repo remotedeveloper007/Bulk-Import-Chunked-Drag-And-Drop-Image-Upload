@@ -23,4 +23,9 @@ class Upload extends Model
     {
         return $this->hasMany(Image::class);
     }
+
+    public function getReceivedChunksCountAttribute()
+    {
+        return count($this->received_chunks ?? []);
+    }
 }
